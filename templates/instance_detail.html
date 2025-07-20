@@ -1,0 +1,455 @@
+{% extends "base.html" %}
+
+{% block title %}{{ instance.name }} - AWS Diagnostic Tool{% endblock %}
+{% block page_title %}Instance Details: {{ instance.name }}{% endblock %}
+
+{% block content %}
+<!-- Instance Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h4 class="mb-1">
+                            <i class="fas fa-server text-primary"></i>
+                            {{ instance.name }}
+                        </h4>
+                        <p class="text-muted mb-0">{{ instance.instance_id }}</p>
+                    </div>
+                    <div class="text-end">
+                        <span class="badge badge-state bg-{{ getStateClass(instance.state) }} fs-6">
+                            {{ instance.state }}
+                        </span>
+                        <br>
+                        <small class="text-muted">{{ instance.instance_type }}</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Instance Information -->
+<div class="row mb-4">
+    <!-- Basic Information -->
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-info-circle"></i> Basic Information</h6>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless">
+                    <tr>
+                        <td><strong>Instance ID:</strong></td>
+                        <td><code>{{ instance.instance_id }}</code></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Instance Type:</strong></td>
+                        <td><code>{{ instance.instance_type }}</code></td>
+                    </tr>
+                    <tr>
+                        <td><strong>State:</strong></td>
+                        <td>
+                            <span class="badge badge-state bg-{{ getStateClass(instance.state) }}">
+                                {{ instance.state }}
+                            </span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>Launch Time:</strong></td>
+                        <td>{{ instance.launch_time }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Platform:</strong></td>
+                        <td>{{ instance.platform }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Architecture:</strong></td>
+                        <td>{{ instance.architecture }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Network Information -->
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-network-wired"></i> Network Information</h6>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless">
+                    <tr>
+                        <td><strong>Public IP:</strong></td>
+                        <td>
+                            {% if instance.public_ip != 'N/A' %}
+                                <code>{{ instance.public_ip }}</code>
+                            {% else %}
+                                <span class="text-muted">Not assigned</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>Private IP:</strong></td>
+                        <td>
+                            {% if instance.private_ip != 'N/A' %}
+                                <code>{{ instance.private_ip }}</code>
+                            {% else %}
+                                <span class="text-muted">Not assigned</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>VPC ID:</strong></td>
+                        <td><code>{{ instance.vpc_id }}</code></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Subnet ID:</strong></td>
+                        <td><code>{{ instance.subnet_id }}</code></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Availability Zone:</strong></td>
+                        <td>{{ instance.availability_zone }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Monitoring:</strong></td>
+                        <td>
+                            <span class="badge bg-{{ 'success' if instance.monitoring == 'enabled' else 'secondary' }}">
+                                {{ instance.monitoring }}
+                            </span>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Security Groups and Block Devices -->
+<div class="row mb-4">
+    <!-- Security Groups -->
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-shield-alt"></i> Security Groups</h6>
+            </div>
+            <div class="card-body">
+                {% if instance.security_groups %}
+                    <div class="list-group list-group-flush">
+                        {% for sg in instance.security_groups %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ sg.group_name }}</strong>
+                                <br>
+                                <small class="text-muted">{{ sg.group_id }}</small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-muted">No security groups assigned</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Block Devices -->
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-hdd"></i> Block Devices</h6>
+            </div>
+            <div class="card-body">
+                {% if instance.block_devices %}
+                    <div class="list-group list-group-flush">
+                        {% for device in instance.block_devices %}
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>{{ device.device_name }}</strong>
+                                    {% if device.volume_id != 'N/A' %}
+                                        <br>
+                                        <small class="text-muted">{{ device.volume_id }}</small>
+                                    {% endif %}
+                                </div>
+                                <div>
+                                    {% if device.delete_on_termination %}
+                                        <span class="badge bg-warning">Delete on Terminate</span>
+                                    {% else %}
+                                        <span class="badge bg-info">Keep on Terminate</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-muted">No block devices found</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Instance Status -->
+{% if status %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-heartbeat"></i> Instance Status</h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>System Status</h6>
+                        <span class="badge bg-{{ 'success' if status.system_status == 'ok' else 'danger' }}">
+                            {{ status.system_status }}
+                        </span>
+                        {% if status.system_status_details %}
+                            <ul class="list-unstyled mt-2">
+                                {% for detail in status.system_status_details %}
+                                <li><small class="text-muted">{{ detail.Name }}: {{ detail.Status }}</small></li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Instance Status</h6>
+                        <span class="badge bg-{{ 'success' if status.instance_status == 'ok' else 'danger' }}">
+                            {{ status.instance_status }}
+                        </span>
+                        {% if status.instance_status_details %}
+                            <ul class="list-unstyled mt-2">
+                                {% for detail in status.instance_status_details %}
+                                <li><small class="text-muted">{{ detail.Name }}: {{ detail.Status }}</small></li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Metrics Charts -->
+{% if instance.state == 'running' and metrics %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-chart-line"></i> Performance Metrics (Last Hour)</h6>
+            </div>
+            <div class="card-body">
+                <div id="cpuChart" class="chart-container"></div>
+                <div id="networkChart" class="chart-container"></div>
+                <div id="diskChart" class="chart-container"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Console Output -->
+{% if console_output %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-terminal"></i> Console Output</h6>
+            </div>
+            <div class="card-body">
+                <div class="log-container">
+                    <pre>{{ console_output }}</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Tags -->
+{% if instance.tags %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-tags"></i> Tags</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-flex flex-wrap gap-2">
+                    {% for key, value in instance.tags.items() %}
+                    <span class="badge bg-light text-dark">
+                        <strong>{{ key }}:</strong> {{ value }}
+                    </span>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Action Buttons -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body text-center">
+                <a href="{{ url_for('dashboard.index') }}" class="btn btn-outline-secondary me-2">
+                    <i class="fas fa-arrow-left"></i> Back to Dashboard
+                </a>
+                <button class="btn btn-outline-primary me-2" onclick="refreshInstanceData()">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+                {% if instance.state == 'running' %}
+                <button class="btn btn-outline-success me-2" onclick="loadDetailedMetrics()">
+                    <i class="fas fa-chart-line"></i> View Metrics
+                </button>
+                <button class="btn btn-outline-info" onclick="loadInstanceLogs()">
+                    <i class="fas fa-file-alt"></i> View Logs
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Display metrics charts if available
+    {% if instance.state == 'running' and metrics %}
+    $(document).ready(function() {
+        displayInstanceMetrics({{ metrics | tojson }});
+    });
+    {% endif %}
+    
+    function displayInstanceMetrics(metrics) {
+        // CPU Chart
+        if (metrics.cpu && metrics.cpu.length > 0) {
+            const cpuData = [{
+                x: metrics.cpu.map(d => d.timestamp),
+                y: metrics.cpu.map(d => d.average),
+                type: 'scatter',
+                mode: 'lines+markers',
+                name: 'CPU Utilization',
+                line: { color: '#ff6b6b' },
+                fill: 'tonexty'
+            }];
+            
+            const cpuLayout = {
+                title: 'CPU Utilization (%)',
+                xaxis: { title: 'Time' },
+                yaxis: { title: 'CPU %', range: [0, 100] },
+                height: 300
+            };
+            
+            Plotly.newPlot('cpuChart', cpuData, cpuLayout);
+        }
+        
+        // Network Chart
+        if (metrics.network && (metrics.network.network_in.length > 0 || metrics.network.network_out.length > 0)) {
+            const networkData = [];
+            
+            if (metrics.network.network_in.length > 0) {
+                networkData.push({
+                    x: metrics.network.network_in.map(d => d.timestamp),
+                    y: metrics.network.network_in.map(d => d.average),
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    name: 'Network In',
+                    line: { color: '#4ecdc4' }
+                });
+            }
+            
+            if (metrics.network.network_out.length > 0) {
+                networkData.push({
+                    x: metrics.network.network_out.map(d => d.timestamp),
+                    y: metrics.network.network_out.map(d => d.average),
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    name: 'Network Out',
+                    line: { color: '#45b7d1' }
+                });
+            }
+            
+            const networkLayout = {
+                title: 'Network Traffic (Bytes)',
+                xaxis: { title: 'Time' },
+                yaxis: { title: 'Bytes' },
+                height: 300
+            };
+            
+            Plotly.newPlot('networkChart', networkData, networkLayout);
+        }
+        
+        // Disk Chart
+        if (metrics.disk && (metrics.disk.disk_read.length > 0 || metrics.disk.disk_write.length > 0)) {
+            const diskData = [];
+            
+            if (metrics.disk.disk_read.length > 0) {
+                diskData.push({
+                    x: metrics.disk.disk_read.map(d => d.timestamp),
+                    y: metrics.disk.disk_read.map(d => d.average),
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    name: 'Disk Read',
+                    line: { color: '#96ceb4' }
+                });
+            }
+            
+            if (metrics.disk.disk_write.length > 0) {
+                diskData.push({
+                    x: metrics.disk.disk_write.map(d => d.timestamp),
+                    y: metrics.disk.disk_write.map(d => d.average),
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    name: 'Disk Write',
+                    line: { color: '#feca57' }
+                });
+            }
+            
+            const diskLayout = {
+                title: 'Disk I/O (Bytes)',
+                xaxis: { title: 'Time' },
+                yaxis: { title: 'Bytes' },
+                height: 300
+            };
+            
+            Plotly.newPlot('diskChart', diskData, diskLayout);
+        }
+    }
+    
+    function refreshInstanceData() {
+        location.reload();
+    }
+    
+    function loadDetailedMetrics() {
+        // Redirect to metrics view or load in modal
+        window.open(`/api/metrics/{{ instance.instance_id }}?region={{ selected_region }}`, '_blank');
+    }
+    
+    function loadInstanceLogs() {
+        // Load instance logs
+        fetch(`/api/logs/{{ instance.instance_id }}?region={{ selected_region }}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Display logs in modal or new page
+                    console.log('Logs loaded:', data.logs);
+                    alert('Logs loaded successfully! Check console for details.');
+                } else {
+                    alert('Error loading logs: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error loading logs');
+            });
+    }
+</script>
+{% endblock %} 

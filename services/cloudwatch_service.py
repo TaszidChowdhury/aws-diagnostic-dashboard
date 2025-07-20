@@ -6,6 +6,7 @@ import boto3
 from typing import Dict, List, Any, Optional
 from botocore.exceptions import ClientError, NoCredentialsError
 from datetime import datetime, timedelta
+import random
 from utils.helpers import format_metric_data, get_time_range
 
 
@@ -20,7 +21,15 @@ class CloudWatchService:
             region_name: AWS region name
         """
         self.region_name = region_name
-        self.client = boto3.client('cloudwatch', region_name=region_name)
+        self.demo_mode = False
+        
+        try:
+            self.client = boto3.client('cloudwatch', region_name=region_name)
+            # Test credentials by making a simple call
+            self.client.list_metrics(Limit=1)
+        except (NoCredentialsError, ClientError):
+            self.demo_mode = True
+            print("⚠️  CloudWatch: Running in DEMO MODE with sample metrics data.")
     
     def get_cpu_utilization(self, instance_id: str, hours: int = 1) -> List[Dict[str, Any]]:
         """
@@ -33,6 +42,9 @@ class CloudWatchService:
         Returns:
             List of CPU utilization data points
         """
+        if self.demo_mode:
+            return self._get_demo_cpu_data(instance_id, hours)
+            
         try:
             start_time, end_time = get_time_range(hours)
             
@@ -69,6 +81,9 @@ class CloudWatchService:
         Returns:
             Dictionary with NetworkIn and NetworkOut data
         """
+        if self.demo_mode:
+            return self._get_demo_network_data(instance_id, hours)
+            
         try:
             start_time, end_time = get_time_range(hours)
             
@@ -125,6 +140,9 @@ class CloudWatchService:
         Returns:
             Dictionary with disk read/write data
         """
+        if self.demo_mode:
+            return self._get_demo_disk_data(instance_id, hours)
+            
         try:
             start_time, end_time = get_time_range(hours)
             
@@ -197,6 +215,134 @@ class CloudWatchService:
             
         except Exception as e:
             raise Exception(f"Error fetching all metrics: {str(e)}")
+
+    def _get_demo_cpu_data(self, instance_id: str, hours: int = 1) -> List[Dict[str, Any]]:
+        """Generate demo CPU utilization data."""
+        data = []
+        now = datetime.utcnow()
+        
+        # Generate different CPU patterns based on instance ID
+        if 'database' in instance_id.lower() or '0987654321' in instance_id:
+            base_cpu = 75.0  # High CPU for database server
+        elif 'backup' in instance_id.lower() or 'abcdef' in instance_id:
+            base_cpu = 0.0   # No CPU for stopped instance
+        else:
+            base_cpu = 45.0  # Normal CPU for web server
+        
+        for i in range(hours * 12):  # 5-minute intervals
+            timestamp = now - timedelta(minutes=5 * i)
+            
+            if base_cpu == 0.0:
+                cpu_value = 0.0
+            else:
+                # Add some realistic variation
+                variation = random.uniform(-10, 15)
+                cpu_value = max(0, min(100, base_cpu + variation))
+            
+            data.append({
+                'timestamp': timestamp.isoformat(),
+                'average': round(cpu_value, 2),
+                'maximum': round(cpu_value + random.uniform(0, 5), 2),
+                'minimum': round(max(0, cpu_value - random.uniform(0, 5)), 2)
+            })
+        
+        return data[::-1]  # Reverse to show oldest first
+
+    def _get_demo_network_data(self, instance_id: str, hours: int = 1) -> Dict[str, List[Dict[str, Any]]]:
+        """Generate demo network data."""
+        network_in = []
+        network_out = []
+        now = datetime.utcnow()
+        
+        # Different network patterns based on instance type
+        if 'database' in instance_id.lower() or '0987654321' in instance_id:
+            base_in = 5000000   # 5 MB/s average
+            base_out = 2000000  # 2 MB/s average
+        elif 'backup' in instance_id.lower() or 'abcdef' in instance_id:
+            base_in = 0
+            base_out = 0
+        else:
+            base_in = 8000000   # 8 MB/s average for web server
+            base_out = 4000000  # 4 MB/s average
+        
+        for i in range(hours * 12):
+            timestamp = now - timedelta(minutes=5 * i)
+            
+            if base_in == 0:
+                in_value = 0
+                out_value = 0
+            else:
+                in_variation = random.uniform(0.5, 1.5)
+                out_variation = random.uniform(0.5, 1.5)
+                in_value = int(base_in * in_variation)
+                out_value = int(base_out * out_variation)
+            
+            network_in.append({
+                'timestamp': timestamp.isoformat(),
+                'average': in_value,
+                'maximum': int(in_value * 1.2),
+                'minimum': int(in_value * 0.8)
+            })
+            
+            network_out.append({
+                'timestamp': timestamp.isoformat(),
+                'average': out_value,
+                'maximum': int(out_value * 1.2),
+                'minimum': int(out_value * 0.8)
+            })
+        
+        return {
+            'network_in': network_in[::-1],
+            'network_out': network_out[::-1]
+        }
+
+    def _get_demo_disk_data(self, instance_id: str, hours: int = 1) -> Dict[str, List[Dict[str, Any]]]:
+        """Generate demo disk data."""
+        disk_read = []
+        disk_write = []
+        now = datetime.utcnow()
+        
+        # Different disk patterns based on instance type
+        if 'database' in instance_id.lower() or '0987654321' in instance_id:
+            base_read = 2000000   # 2 MB/s average
+            base_write = 1500000  # 1.5 MB/s average
+        elif 'backup' in instance_id.lower() or 'abcdef' in instance_id:
+            base_read = 0
+            base_write = 0
+        else:
+            base_read = 1000000   # 1 MB/s average
+            base_write = 800000   # 0.8 MB/s average
+        
+        for i in range(hours * 12):
+            timestamp = now - timedelta(minutes=5 * i)
+            
+            if base_read == 0:
+                read_value = 0
+                write_value = 0
+            else:
+                read_variation = random.uniform(0.5, 1.5)
+                write_variation = random.uniform(0.5, 1.5)
+                read_value = int(base_read * read_variation)
+                write_value = int(base_write * write_variation)
+            
+            disk_read.append({
+                'timestamp': timestamp.isoformat(),
+                'average': read_value,
+                'maximum': int(read_value * 1.3),
+                'minimum': int(read_value * 0.7)
+            })
+            
+            disk_write.append({
+                'timestamp': timestamp.isoformat(),
+                'average': write_value,
+                'maximum': int(write_value * 1.3),
+                'minimum': int(write_value * 0.7)
+            })
+        
+        return {
+            'disk_read': disk_read[::-1],
+            'disk_write': disk_write[::-1]
+        }
     
     def get_metric_alarms(self, instance_id: str) -> List[Dict[str, Any]]:
         """

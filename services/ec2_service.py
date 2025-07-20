@@ -5,7 +5,7 @@ Handles all EC2-related operations using Boto3.
 import boto3
 from typing import Dict, List, Any, Optional
 from botocore.exceptions import ClientError, NoCredentialsError
-from datetime import datetime
+from datetime import datetime, timedelta
 from utils.helpers import format_datetime, parse_instance_tags, get_instance_name
 
 
@@ -20,8 +20,16 @@ class EC2Service:
             region_name: AWS region name
         """
         self.region_name = region_name
-        self.client = boto3.client('ec2', region_name=region_name)
-        self.resource = boto3.resource('ec2', region_name=region_name)
+        self.demo_mode = False
+        
+        try:
+            self.client = boto3.client('ec2', region_name=region_name)
+            self.resource = boto3.resource('ec2', region_name=region_name)
+            # Test credentials by making a simple call
+            self.client.describe_regions()
+        except (NoCredentialsError, ClientError):
+            self.demo_mode = True
+            print("⚠️  AWS credentials not found or invalid. Running in DEMO MODE with sample data.")
     
     def get_all_instances(self) -> List[Dict[str, Any]]:
         """
@@ -30,6 +38,9 @@ class EC2Service:
         Returns:
             List of instance dictionaries with metadata
         """
+        if self.demo_mode:
+            return self._get_demo_instances()
+            
         try:
             response = self.client.describe_instances()
             instances = []
@@ -62,6 +73,13 @@ class EC2Service:
         Returns:
             Instance dictionary or None if not found
         """
+        if self.demo_mode:
+            demo_instances = self._get_demo_instances()
+            for instance in demo_instances:
+                if instance['instance_id'] == instance_id:
+                    return instance
+            return None
+            
         try:
             response = self.client.describe_instances(
                 InstanceIds=[instance_id]
@@ -92,6 +110,16 @@ class EC2Service:
         Returns:
             Dictionary with status information
         """
+        if self.demo_mode:
+            return {
+                'instance_id': instance_id,
+                'state': 'running',
+                'system_status': 'ok',
+                'instance_status': 'ok',
+                'system_status_details': [],
+                'instance_status_details': []
+            }
+            
         try:
             response = self.client.describe_instance_status(
                 InstanceIds=[instance_id],
@@ -126,6 +154,22 @@ class EC2Service:
         Returns:
             Console output as string
         """
+        if self.demo_mode:
+            return f"""=== Demo Console Output for {instance_id} ===
+[2024-01-15 10:30:15] INFO: System booting up...
+[2024-01-15 10:30:20] INFO: Loading kernel modules...
+[2024-01-15 10:30:25] INFO: Starting network services...
+[2024-01-15 10:30:30] INFO: Mounting filesystems...
+[2024-01-15 10:30:35] INFO: Starting systemd...
+[2024-01-15 10:30:40] INFO: Loading user data...
+[2024-01-15 10:30:45] INFO: System ready
+[2024-01-15 10:31:00] INFO: Cloud-init completed
+[2024-01-15 10:31:05] INFO: SSH service started
+[2024-01-15 10:31:10] INFO: All services running normally
+
+=== Demo Mode: This is sample console output ===
+"""
+            
         try:
             response = self.client.get_console_output(
                 InstanceId=instance_id
@@ -141,6 +185,87 @@ class EC2Service:
                 return f"Error retrieving console output: {str(e)}"
         except Exception as e:
             return f"Unexpected error: {str(e)}"
+
+    def _get_demo_instances(self) -> List[Dict[str, Any]]:
+        """
+        Get demo instances for testing without AWS credentials.
+        
+        Returns:
+            List of demo instance dictionaries
+        """
+        now = datetime.now()
+        demo_instances = [
+            {
+                'instance_id': 'i-1234567890abcdef0',
+                'name': 'Web Server 1',
+                'instance_type': 't3.micro',
+                'state': 'running',
+                'launch_time': format_datetime(now - timedelta(days=5)),
+                'launch_time_raw': now - timedelta(days=5),
+                'public_ip': '52.23.45.67',
+                'private_ip': '10.0.1.100',
+                'vpc_id': 'vpc-12345678',
+                'subnet_id': 'subnet-12345678',
+                'availability_zone': f'{self.region_name}a',
+                'platform': 'linux',
+                'tags': {'Name': 'Web Server 1', 'Environment': 'Production'},
+                'security_groups': [
+                    {'group_id': 'sg-12345678', 'group_name': 'web-server-sg'}
+                ],
+                'block_devices': [
+                    {'device_name': '/dev/xvda', 'volume_id': 'vol-12345678', 'delete_on_termination': True}
+                ],
+                'cpu_usage': 45.2,
+                'status': 'running'
+            },
+            {
+                'instance_id': 'i-0987654321fedcba0',
+                'name': 'Database Server',
+                'instance_type': 't3.small',
+                'state': 'running',
+                'launch_time': format_datetime(now - timedelta(days=10)),
+                'launch_time_raw': now - timedelta(days=10),
+                'public_ip': '52.23.45.68',
+                'private_ip': '10.0.1.101',
+                'vpc_id': 'vpc-12345678',
+                'subnet_id': 'subnet-12345678',
+                'availability_zone': f'{self.region_name}a',
+                'platform': 'linux',
+                'tags': {'Name': 'Database Server', 'Environment': 'Production'},
+                'security_groups': [
+                    {'group_id': 'sg-87654321', 'group_name': 'database-sg'}
+                ],
+                'block_devices': [
+                    {'device_name': '/dev/xvda', 'volume_id': 'vol-87654321', 'delete_on_termination': True}
+                ],
+                'cpu_usage': 85.7,
+                'status': 'running'
+            },
+            {
+                'instance_id': 'i-abcdef1234567890',
+                'name': 'Backup Server',
+                'instance_type': 't3.micro',
+                'state': 'stopped',
+                'launch_time': format_datetime(now - timedelta(days=15)),
+                'launch_time_raw': now - timedelta(days=15),
+                'public_ip': 'N/A',
+                'private_ip': '10.0.1.102',
+                'vpc_id': 'vpc-12345678',
+                'subnet_id': 'subnet-12345678',
+                'availability_zone': f'{self.region_name}a',
+                'platform': 'linux',
+                'tags': {'Name': 'Backup Server', 'Environment': 'Production'},
+                'security_groups': [
+                    {'group_id': 'sg-abcdef12', 'group_name': 'backup-sg'}
+                ],
+                'block_devices': [
+                    {'device_name': '/dev/xvda', 'volume_id': 'vol-abcdef12', 'delete_on_termination': True}
+                ],
+                'cpu_usage': 0.0,
+                'status': 'stopped'
+            }
+        ]
+        return demo_instances
     
     def _format_instance_data(self, instance: Dict[str, Any]) -> Dict[str, Any]:
         """
